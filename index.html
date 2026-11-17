@@ -255,14 +255,22 @@
         </div>
       </div>
 
-      <!-- 2. SPEED CONTROL (UP TO 100X) -->
+      <!-- 2. SPEED & DIFFICULTY CONTROLS -->
       <div class="card">
-        <div class="card-title">Simulation Speed</div>
-        <div class="controls-row">
+        <div class="card-title">Simulation Controls</div>
+        <div class="controls-row" style="margin-bottom: 8px;">
           <button id="btnPause">Pause</button>
-          <div class="slider-box">
+          <div class="slider-box" style="flex: 1;">
+            <span style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Speed</span>
             <input type="range" id="speedSlider" min="1" max="100" value="1">
             <span class="speed-label" id="speedLabel">1x</span>
+          </div>
+        </div>
+        <div class="controls-row">
+          <div class="slider-box" style="width: 100%;">
+            <span style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Difficulty</span>
+            <input type="range" id="diffSlider" min="1" max="4" value="2" step="1">
+            <span class="speed-label" id="diffLabel" style="min-width: 80px; font-size: 12px;">Normal</span>
           </div>
         </div>
       </div>
@@ -357,10 +365,20 @@
     const GRAVITY = 0.35;
     const JUMP = -6.5;
     const PIPE_SPEED = 2.4;
-    const PIPE_GAP = 145;
     const PIPE_WIDTH = 55;
-    const PIPE_SPAWN_INTERVAL = 110;
     const GROUND_HEIGHT = 70;
+
+    // Difficulty presets (Default is level 2: Normal, matching baseline behavior exactly)
+    const DIFFICULTY_PRESETS = {
+      1: { name: 'Easy', gap: 165, interval: 125, minH: 60 },
+      2: { name: 'Normal', gap: 145, interval: 110, minH: 50 },
+      3: { name: 'Hard', gap: 130, interval: 95, minH: 40 },
+      4: { name: 'Extreme', gap: 115, interval: 80, minH: 30 }
+    };
+
+    let currentPipeGap = 145;
+    let currentSpawnInterval = 110;
+    let currentMinHeight = 50;
 
     let simSpeed = 1;
     let isPaused = false;
@@ -456,10 +474,10 @@
     class Pipe {
       constructor(customX = null) {
         this.x = customX !== null ? customX : canvas.width;
-        const minHeight = 50;
-        const maxHeight = canvas.height - GROUND_HEIGHT - PIPE_GAP - minHeight;
+        const minHeight = currentMinHeight;
+        const maxHeight = canvas.height - GROUND_HEIGHT - currentPipeGap - minHeight;
         this.topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
-        this.bottomY = this.topHeight + PIPE_GAP;
+        this.bottomY = this.topHeight + currentPipeGap;
         this.bottomHeight = canvas.height - GROUND_HEIGHT - this.bottomY;
         this.passed = false;
       }
@@ -491,7 +509,7 @@
     function step() {
       frameCount++;
 
-      if (frameCount % PIPE_SPAWN_INTERVAL === 0) {
+      if (frameCount % currentSpawnInterval === 0) {
         pipes.push(new Pipe());
       }
 
@@ -655,6 +673,17 @@
     speedSlider.addEventListener('input', (e) => {
       simSpeed = parseInt(e.target.value, 10);
       speedLabel.textContent = `${simSpeed}x`;
+    });
+
+    const diffSlider = document.getElementById('diffSlider');
+    const diffLabel = document.getElementById('diffLabel');
+    diffSlider.addEventListener('input', (e) => {
+      const level = parseInt(e.target.value, 10);
+      const preset = DIFFICULTY_PRESETS[level] || DIFFICULTY_PRESETS[2];
+      currentPipeGap = preset.gap;
+      currentSpawnInterval = preset.interval;
+      currentMinHeight = preset.minH;
+      diffLabel.textContent = preset.name;
     });
 
     window.addEventListener('keydown', (e) => {
