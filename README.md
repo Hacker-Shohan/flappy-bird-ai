@@ -7,6 +7,13 @@ A Flappy Bird clone controlled by a neural network trained with neuroevolution u
 
 ---
 
+## Demo
+
+<!-- TODO: Record and add gameplay showcase GIF to assets/demo.gif -->
+![Flappy Bird AI Demo](assets/demo.gif)
+
+---
+
 ## Live Demo
 
 Play or watch the trained model in your browser:  
@@ -116,6 +123,24 @@ python evaluate.py -n 200 -m 10000
 ├── LICENSE           # MIT License
 └── .gitignore
 ```
+
+---
+
+## Limitations
+
+- **Single Champion Architecture**: The current evolution strategy maintains a single champion whose mutated offspring constitute the next generation. There is no multi-parent gene pool diversity or crossover between distinct lineage trees.
+- **Fixed, Small Topology**: The neural network is constrained to a fixed 5-6-1 Multi-Layer Perceptron (43 parameters). It cannot dynamically discover new features, connections, or additional neuron layers.
+- **Physics Sensitivity**: The model was trained specifically on fixed simulation physics (Gravity = 0.35, Jump Impulse = -6.5, Pipe Speed = 2.4, Gap = 145px). Changes in physics parameters, frame timing jitter, or aggressive difficulty settings degrade performance.
+- **Reactive, Markovian Policy**: Decisions depend strictly on instantaneous state values (height, velocity, pipe positions) with zero recurrent state (RNN/LSTM) or temporal history window.
+
+---
+
+## Future Ideas
+
+- **Genetic Crossover**: Introduce crossover operators (uniform or arithmetic recombination) between diverse high-performing parent networks.
+- **NEAT Benchmark**: Implement NeuroEvolution of Augmenting Topologies (NEAT) to evolve both network weights and network topologies from scratch.
+- **Reinforcement Learning Comparison**: Implement Deep Q-Networks (DQN) or Proximal Policy Optimization (PPO) using identical state inputs to compare sample efficiency and convergence rates against evolution strategies.
+- **Domain Randomization**: Train across randomized physics parameters (varying gravity, flap force, and speed) to produce a robust general-purpose controller.
 
 ---
 
