@@ -1,6 +1,6 @@
 # Flappy Bird AI
 
-A Flappy Bird clone controlled by a neural network trained with neuroevolution using elitism + mutation (a (1+λ) evolution strategy). The bundled model clears over 100,000 consecutive pipes without crashing.
+A Flappy Bird clone controlled by a lightweight 43-parameter neural network trained with neuroevolution using elitism + mutation (a (1+λ) evolution strategy). The bundled champion model achieved a record run of 100,000 consecutive pipes during training and achieves an 85.5% survival rate (9,241 mean pipes) across 200 fresh benchmark seeds.
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Play%20in%20Browser-brightgreen)](https://hacker-shohan.github.io/flappy-bird-ai/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -16,12 +16,14 @@ A Flappy Bird clone controlled by a neural network trained with neuroevolution u
 
 ## Live Demo
 
-Play or watch the trained model in your browser:  
+Play or watch the trained model directly in your browser:  
 👉 **[https://hacker-shohan.github.io/flappy-bird-ai/](https://hacker-shohan.github.io/flappy-bird-ai/)**
 
-- **Zero dependencies**: Pure vanilla JavaScript, HTML5 Canvas, and CSS. No build step or package manager required.
-- **Pre-trained model**: The 100,000-pipe weights are embedded directly into `index.html`.
-- **Interactive UI**: Includes a real-time neural network visualizer, bird tracking roster, speed controls, and a toggle between pre-trained demo mode and live evolution.
+- **Zero dependencies**: Pure vanilla JavaScript, HTML5 Canvas, and modern CSS. No build step or package manager required.
+- **Embedded model**: The pre-trained champion weights are embedded directly into `index.html`.
+- **Live Brain Synapses Visualizer**: Dynamic rendering of the network's 5 inputs, 6 hidden neurons, and flap output with real-time weight coloring and node activations.
+- **Simulation Controls**: 1x to 100x speed slider and pause toggle.
+- **Difficulty Stress-Testing**: Live slider with Easy, Normal, Hard, and Extreme presets to test the model against tighter pipe gaps (down to 115px) and faster spawn frequencies (down to 80 frames).
 
 ---
 
@@ -29,79 +31,63 @@ Play or watch the trained model in your browser:
 
 ### 1. Neural Network Architecture
 
-A feedforward neural network (Multi-Layer Perceptron) controls the bird's flap decisions every frame:
+A compact feedforward Multi-Layer Perceptron (MLP) controls flap decisions every frame:
 
 - **Input Layer (5 nodes)**:
-  1. `Bird Y` (normalized bird height)
-  2. `Velocity` (normalized vertical velocity)
-  3. `Pipe Distance` (horizontal distance to upcoming pipe)
-  4. `Gap Top` (vertical position of the upper pipe boundary)
-  5. `Gap Bottom` (vertical position of the lower pipe boundary)
-- **Hidden Layer (6 neurons)**: Computes weighted sums with biases, squashed by the Sigmoid activation function.
-- **Output Layer (1 neuron)**: Sigmoid output representing flap probability.
-  - Output $> 0.5 \implies$ **Flap**
-  - Output $\le 0.5 \implies$ **Glide**
+  1. `Bird Y`: Normalized bird height (`y / canvas.height`)
+  2. `Velocity`: Normalized vertical velocity (`(vel + 10) / 20`)
+  3. `Pipe Distance`: Normalized horizontal distance to next pipe (`(pipe.x - bird.x) / canvas.width`)
+  4. `Gap Top`: Normalized vertical coordinate of upper pipe boundary (`gapTop / canvas.height`)
+  5. `Gap Bottom`: Normalized vertical coordinate of lower pipe boundary (`gapBottom / canvas.height`)
+- **Hidden Layer (6 neurons)**: Weighted sum + bias, activated via standard Sigmoid.
+- **Output Layer (1 neuron)**: Sigmoid probability output.
+  - Output $> 0.5 \implies$ **Flap** (impulse = $-6.5$)
+  - Output $\le 0.5 \implies$ **Glide** (accelerated by gravity $= +0.35$)
 
-$$\text{Output} = \sigma\left( \sum (\text{Hidden} \times W_{\text{output}}) + b_{\text{output}} \right)$$
+$$\text{Output} = \sigma\left( \sum_{j=1}^6 (\text{Hidden}_j \times W_{HO,j}) + b_O \right)$$
 
-Total parameters: **43 weights and biases**.
+Total parameter count: **43 weights and biases** (30 input-hidden + 6 hidden-output + 6 hidden biases + 1 output bias).
 
 ---
 
 ### 2. Neuroevolution: (1+λ) Evolution Strategy
 
-Instead of backpropagation or crossover-based genetic algorithms, the model learns via a **(1+λ) evolution strategy** (elitism + mutation):
+Code analysis of the trainer (`train.py`) reveals key architectural details:
 
-1. **Population**: A generation of candidate birds (default: 60) is evaluated in parallel.
-2. **Selection & Elitism**: The single best-performing champion is preserved unchanged into the next generation.
-3. **Mutation**: The remaining $\lambda = 59$ offspring are generated solely by mutating the champion's weights and biases with varying mutation rates and perturbation strengths (no crossover is used).
-4. **Fitness Metric**: Evaluated by the number of pipes cleared across seeded procedural obstacles.
-
-Over successive generations, the network converges on an optimal flap frequency and gap-targeting trajectory.
+1. **Evolution Strategy, Not Genetic Algorithm**: The population of 60 candidate networks is formed by taking 1 preserved champion (elitism) and generating $\lambda = 59$ offspring strictly through Gaussian mutations of the champion's weights. **There is no crossover or multi-parent recombination**, making this a $(1+\lambda)$ evolution strategy rather than a traditional genetic algorithm.
+2. **RNG Seeding & Fitness Landscape**: During headless training, candidates evaluate on independently randomized seeds. While this introduces stochastic evaluation noise (some candidates encounter easier pipe sequences than others), elitism ensures surviving weights continually refine a robust, general-purpose gap-seeking policy.
+3. **Fitness Metric**: Fitness equals the number of pipes cleared before ground or pipe collision.
 
 ---
 
-## Running Locally
+## Evaluation & Empirical Benchmark
 
-### Option 1: Standalone Web Interface
-Open `index.html` in any web browser. No local web server required.
-
-### Option 2: Headless Python Training
-To run headless multi-core training:
-
-```bash
-# Clone the repository
-git clone https://github.com/Hacker-Shohan/flappy-bird-ai.git
-cd flappy-bird-ai
-
-# Run headless trainer
-python train.py
-```
-
-The script evaluates generations in parallel using Python's `multiprocessing` module, logs progress to `training_log.csv`, and saves records to `best_bird.json`.
-
----
-
-## Evaluation & Benchmark
-
-The 100,000-pipe milestone was achieved during continuous headless training on a procedural seed stream. To evaluate generalizability, the model was tested headlessly across **200 fresh random seeds**, with each trial capped at **10,000 pipes**:
+While the champion model scored **100,000 continuous pipes** on a single training seed run, real-world generalization requires multi-seed statistical testing. We evaluated `best_bird.json` headlessly using `evaluate.py` across **200 fresh random seeds**, capping each trial at **10,000 pipes**.
 
 ### Simulation Parameters
 - **Pipe Gap**: 145 px (vertical opening between upper and lower pipes)
 - **Pipe Spacing**: 110 frames (~264 px horizontal distance at 2.4 px/frame)
 - **Pipe Speed**: 2.4 px/frame
-- **Gap Height Range**: Procedural uniform distribution between `y = 50` and `y = 315` px (`canvas.height - GROUND_HEIGHT - PIPE_GAP - minHeight`)
-- **Bird Physics**: Gravity = 0.35, Jump Impulse = -6.5, Max Fall Velocity = 9.0
+- **Gap Height Range**: Uniform random between $y = 50$ px and $y = 315$ px
+- **Bird Physics**: Gravity = 0.35, Jump Impulse = -6.5, Max Velocity = 9.0
 
-### Benchmark Results (200 Seeds, 10k Cap)
-- **Survival Rate**: **85.5%** (171 / 200 seeds reached the 10,000-pipe cap without crashing)
-- **Mean Pipes Cleared**: **9,241.6 pipes**
-- **Median Pipes Cleared**: **10,000.0 pipes**
-- **Min Pipes Cleared**: **130 pipes**
-- **Max Pipes Cleared**: **10,000 pipes**
+### Benchmark Results (200 Seeds, 10,000-Pipe Cap)
 
-### Failure Analysis
-Across the 200 seeds, **29 seeds failed** prior to the 10,000-pipe mark (e.g., Seed 38 failed at pipe 152; Seed 67 at pipe 779; Seed 45 at pipe 916; Seed 148 at pipe 1,343). Because this minimal Multi-Layer Perceptron has only 43 parameters with no temporal memory (RNN/LSTM) or frame history, rare consecutive extreme high-to-low pipe gap placements can catch the bird in an unrecoverable vertical velocity state.
+| Metric | Result |
+|---|---|
+| **Seeds Tested** | 200 |
+| **Survival Rate (reached 10k cap)** | **85.5%** (171 / 200 seeds) |
+| **Mean Pipes Cleared** | **9,241.6 pipes** |
+| **Median Pipes Cleared** | **10,000.0 pipes** |
+| **Minimum Pipes Cleared** | **130 pipes** |
+| **Maximum Pipes Cleared** | **10,000 pipes** |
+
+### Honest Failure Analysis
+Across 200 arbitrary seeds, **29 seeds failed** prior to the 10,000-pipe mark (e.g. Seed 38 failed at pipe 152; Seed 67 at pipe 779; Seed 45 at pipe 916; Seed 148 at pipe 1,343). 
+
+Why does this happen?
+- **No Temporal Memory**: The network has only 43 static weights with zero recurrent states (RNN/LSTM) and no history buffer of past frames.
+- **Momentum Trapping**: When procedural generation randomly places consecutive pipes at opposite vertical extremes (e.g. extreme bottom gap immediately followed by extreme top gap), the bird's downward velocity can exceed the recovery window of fixed flap impulses.
 
 Run the evaluation suite locally:
 ```bash
@@ -110,16 +96,36 @@ python evaluate.py -n 200 -m 10000
 
 ---
 
+## Running Locally
+
+### Option 1: Standalone Web Interface
+Double-click `index.html` or open it in any web browser. No server, node, or npm required.
+
+### Option 2: Headless Python Training
+Run multi-process headless training:
+
+```bash
+python train.py --target 100000
+```
+
+To plot training metrics recorded in `training_log.csv`:
+```bash
+python plot_log.py
+```
+
+---
+
 ## Project Structure
 
 ```
 .
-├── index.html        # Self-contained web game, visualizer, and dashboard
-├── train.py          # Multi-process headless trainer
-├── evaluate.py       # Headless multi-seed evaluation benchmark
+├── index.html        # Self-contained showcase web app & live visualizer
+├── train.py          # Multi-process (1+λ) neuroevolution trainer
+├── evaluate.py       # Headless multi-seed statistical benchmark
 ├── plot_log.py       # Training curve visualization (matplotlib)
-├── best_bird.json    # Exported champion weights (100k pipe score)
-├── README.md         # Documentation
+├── best_bird.json    # Exported champion weights (100k pipe record)
+├── assets/           # Media and demonstration assets
+├── README.md         # Documentation & benchmark analysis
 ├── LICENSE           # MIT License
 └── .gitignore
 ```
@@ -128,19 +134,19 @@ python evaluate.py -n 200 -m 10000
 
 ## Limitations
 
-- **Single Champion Architecture**: The current evolution strategy maintains a single champion whose mutated offspring constitute the next generation. There is no multi-parent gene pool diversity or crossover between distinct lineage trees.
-- **Fixed, Small Topology**: The neural network is constrained to a fixed 5-6-1 Multi-Layer Perceptron (43 parameters). It cannot dynamically discover new features, connections, or additional neuron layers.
-- **Physics Sensitivity**: The model was trained specifically on fixed simulation physics (Gravity = 0.35, Jump Impulse = -6.5, Pipe Speed = 2.4, Gap = 145px). Changes in physics parameters, frame timing jitter, or aggressive difficulty settings degrade performance.
-- **Reactive, Markovian Policy**: Decisions depend strictly on instantaneous state values (height, velocity, pipe positions) with zero recurrent state (RNN/LSTM) or temporal history window.
+- **Single Champion Architecture**: Offspring are derived solely from 1 champion with varying mutation strengths. There is no multi-lineage gene pool or genetic crossover.
+- **Fixed, Small Topology**: The network topology is fixed at 5-6-1 (43 parameters). It cannot dynamically discover new features, connections, or hidden layers.
+- **Physics Sensitivity**: The model was trained specifically on fixed simulation physics (Gravity = 0.35, Jump = -6.5, Speed = 2.4, Gap = 145px). Aggressive difficulty presets or differing framerates impact performance.
+- **Reactive, Markovian Policy**: Decisions depend strictly on instantaneous state inputs with zero memory of previous trajectory frames.
 
 ---
 
 ## Future Ideas
 
-- **Genetic Crossover**: Introduce crossover operators (uniform or arithmetic recombination) between diverse high-performing parent networks.
-- **NEAT Benchmark**: Implement NeuroEvolution of Augmenting Topologies (NEAT) to evolve both network weights and network topologies from scratch.
-- **Reinforcement Learning Comparison**: Implement Deep Q-Networks (DQN) or Proximal Policy Optimization (PPO) using identical state inputs to compare sample efficiency and convergence rates against evolution strategies.
-- **Domain Randomization**: Train across randomized physics parameters (varying gravity, flap force, and speed) to produce a robust general-purpose controller.
+- **Genetic Crossover**: Implement two-parent crossover operators (arithmetic or uniform recombination) across diverse elite sub-populations.
+- **NEAT Benchmark**: Implement NeuroEvolution of Augmenting Topologies (NEAT) to evolve network topology alongside connection weights.
+- **Deep RL Comparisons**: Benchmark sample efficiency and collision resilience against Deep Q-Networks (DQN) and Proximal Policy Optimization (PPO).
+- **Domain Randomization**: Train on randomized physics parameters (varying gravity, flap force, and speed) to produce an omni-capable generalist.
 
 ---
 
