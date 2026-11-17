@@ -4,7 +4,7 @@ Targets 100,000 pipes. Loads existing champion as base.
 Prints every single generation clearly.
 Uses half your cores so laptop stays cool.
 """
-import os, sys, json, time, math, random, copy
+import os, sys, json, time, math, random, copy, csv, argparse
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
 
@@ -37,7 +37,7 @@ def mutate(b, rate=0.12, strength=0.25):
     return c
 
 def run_trial(args):
-    brain, seed = args
+    brain, seed, target = args
     if seed: random.seed(seed)
     bird_y=float(FLOOR//2); vel=0.0; bird_x=65.0; score=0; frames=0
     min_h=50; max_h=FLOOR-PIPE_GAP-min_h
@@ -50,7 +50,7 @@ def run_trial(args):
         pb[head]=float(th+PIPE_GAP); pp[head]=False
         head=(head+1)%N; active+=1
     spawn(WIDTH)
-    while score<TARGET:
+    while score<target:
         frames+=1
         if frames%PIPE_INTERVAL==0: spawn(WIDTH)
         cx=1e9; ct=0.35; cb=0.65; idx=tail
@@ -89,14 +89,31 @@ def save(brain, score, gen):
     with open("best_bird.json","w") as f:
         json.dump({"record_score":score,"generation":gen,"brain":brain_to_js(brain)},f,indent=2)
 
+def log_to_csv(csv_path, gen, best, avg, record, elapsed):
+    file_exists = os.path.exists(csv_path)
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["generation", "best_fitness", "avg_fitness", "record_score", "elapsed_seconds"])
+        writer.writerow([gen, best, f"{avg:.2f}", record, f"{elapsed:.2f}"])
+
 def main():
+    parser = argparse.ArgumentParser(description="Headless Neuroevolution Trainer for Flappy Bird AI")
+    parser.add_argument("--target", type=int, default=TARGET, help="Target pipes to clear (default: 100,000)")
+    parser.add_argument("--gens", type=int, default=None, help="Train for a specific number of generations")
+    parser.add_argument("--log-file", type=str, default="training_log.csv", help="Path to CSV log file")
+    args = parser.parse_args()
+
+    target_pipes = args.target
+
     # Use half cores — keep laptop cool
     num_cores = max(2, (os.cpu_count() or 4) // 2)
 
     print("=" * 65)
-    print(f" 🎯 TARGET: 100,000 PIPES | Starting from saved champion")
+    print(f" 🎯 TARGET: {target_pipes:,} PIPES | Starting from saved champion")
     print(f" 🖥️  Using {num_cores} / {os.cpu_count()} cores (laptop-friendly)")
     print(f" 🐦  Population: {POPULATION} birds per generation")
+    print(f" 📝  Logging progress to {args.log_file}")
     print("=" * 65)
 
     # Load champion
@@ -115,8 +132,11 @@ def main():
                     "bh":[random.uniform(-1,1) for _ in range(6)],
                     "bo":[random.uniform(-1,1)]}
 
-    if best_score >= TARGET:
-        print(f"🏆 Already at {best_score:,} pipes — already past 100k!")
+    initial_best_score = best_score
+
+    if best_score >= target_pipes and args.gens is None:
+        print(f"🏆 Already at {best_score:,} pipes — already past target ({target_pipes:,})!")
+        print("💡 Use --gens N or --target M to continue training.")
         return
 
     print(f"{'Gen':>5} | {'This Gen':>10} | {'Record':>10} | {'Time':>7} | {'Top 3 Scores':<30} | Note")
@@ -128,7 +148,7 @@ def main():
 
     try:
         with ProcessPoolExecutor(max_workers=num_cores) as executor:
-            while best_score < TARGET:
+            while True:
                 generation += 1
 
                 # Build population
@@ -139,13 +159,15 @@ def main():
                     candidates.append(mutate(champion, rate=r, strength=s))
 
                 seeds   = [random.randint(1, 9_999_999) for _ in candidates]
-                results = list(executor.map(run_trial, zip(candidates, seeds)))
+                tasks   = [(c, s, target_pipes) for c, s in zip(candidates, seeds)]
+                results = list(executor.map(run_trial, tasks))
 
                 ranked            = sorted(zip(results, candidates), key=lambda x: x[0], reverse=True)
                 gen_best, gen_brain = ranked[0]
                 top3              = [s for s,_ in ranked[:3]]
                 top3_str          = "  ".join(f"{s:>8,}" for s in top3)
                 elapsed           = time.time() - start_time
+                avg               = sum(results) / len(results)
                 note              = ""
 
                 if gen_best > best_score:
@@ -153,11 +175,13 @@ def main():
                     champion   = gen_brain
                     save(champion, best_score, generation)
                     note = "🌟 NEW RECORD!"
-                    if best_score >= TARGET:
-                        note = "🏆 100K ACHIEVED!"
+                    if best_score >= target_pipes:
+                        note = "🏆 TARGET ACHIEVED!"
+
+                log_to_csv(args.log_file, generation, gen_best, avg, best_score, elapsed)
 
                 survivors = sum(1 for s in results if s > 0)
-                pct       = min(100.0, best_score / TARGET * 100)
+                pct       = min(100.0, best_score / target_pipes * 100)
 
                 print(f"{generation:>5} | {gen_best:>10,} | {best_score:>10,} | "
                       f"{elapsed:>6.1f}s | {top3_str} | {note}")
@@ -166,13 +190,14 @@ def main():
                 if generation % 10 == 0:
                     bar_n = int(pct/2)
                     bar   = "█"*bar_n + "░"*(50-bar_n)
-                    avg   = sum(results)/len(results)
                     print(f"      ╰─ [{bar}] {pct:.1f}% | avg:{avg:.0f} | alive:{survivors}/{POPULATION}")
                     print("-" * 85)
 
                 sys.stdout.flush()
 
-                if best_score >= TARGET:
+                if args.gens is not None and generation >= args.gens:
+                    break
+                if args.gens is None and best_score >= target_pipes:
                     break
 
     except KeyboardInterrupt:
@@ -185,8 +210,9 @@ def main():
     else:
         print(f" 📊 Best reached: {best_score:,} pipes | {elapsed:.1f}s")
     print("=" * 65)
-    save(champion, best_score, generation)
-    print(f"\n💾 Saved to best_bird.json!")
+    if best_score > initial_best_score:
+        save(champion, best_score, generation)
+        print(f"\n💾 Saved to best_bird.json!")
     print("👉 Go to http://localhost:8000 → 📥 Load from Disk")
 
 if __name__ == "__main__":
