@@ -1,6 +1,6 @@
 # Flappy Bird AI
 
-A Flappy Bird clone controlled by a neural network trained with neuroevolution (genetic algorithms). The bundled model clears over 100,000 consecutive pipes without crashing.
+A Flappy Bird clone controlled by a neural network trained with neuroevolution using elitism + mutation (a (1+λ) evolution strategy). The bundled model clears over 100,000 consecutive pipes without crashing.
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Play%20in%20Browser-brightgreen)](https://hacker-shohan.github.io/flappy-bird-ai/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -41,14 +41,14 @@ Total parameters: **43 weights and biases**.
 
 ---
 
-### 2. Genetic Algorithm (Neuroevolution)
+### 2. Neuroevolution: (1+λ) Evolution Strategy
 
-Instead of traditional backpropagation or gradient descent, the model learns via simulated natural selection:
+Instead of backpropagation or crossover-based genetic algorithms, the model learns via a **(1+λ) evolution strategy** (elitism + mutation):
 
-1. **Population**: A generation of candidate birds (default: 60) evaluates in parallel.
-2. **Fitness Function**: Rewards survival time and adds bonus fitness for staying vertically aligned with the pipe gap, plus a large boost (+1,500) for each pipe cleared.
-3. **Selection & Elitism**: The highest-performing birds are preserved unchanged into the next generation.
-4. **Mutation**: Offspring are created by applying small random adjustments to the champion's weights and biases.
+1. **Population**: A generation of candidate birds (default: 60) is evaluated in parallel.
+2. **Selection & Elitism**: The single best-performing champion is preserved unchanged into the next generation.
+3. **Mutation**: The remaining $\lambda = 59$ offspring are generated solely by mutating the champion's weights and biases with varying mutation rates and perturbation strengths (no crossover is used).
+4. **Fitness Metric**: Evaluated by the number of pipes cleared across seeded procedural obstacles.
 
 Over successive generations, the network converges on an optimal flap frequency and gap-targeting trajectory.
 
