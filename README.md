@@ -7,13 +7,6 @@ A Flappy Bird clone controlled by a lightweight 43-parameter neural network trai
 
 ---
 
-## Demo
-
-<!-- TODO: Record and add gameplay showcase GIF to assets/demo.gif -->
-![Flappy Bird AI Demo](assets/demo.gif)
-
----
-
 ## Live Demo
 
 Play or watch the trained model directly in your browser:  
